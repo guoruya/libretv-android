@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>LibreTV · 平板版试用</title><link rel="stylesheet" href="/style.css"><script src="/vendor/hls.min.js" defer></script><script src="/app.js" defer></script></head>
+<body>
+  <aside class="sidebar"><a class="brand" href="/">Libre<span>TV</span></a><p class="edition">平板版 · 1.3</p><nav id="nav" aria-label="栏目"></nav><div class="preview-note">网页试用<br><small>先试播放操作，再安装新版 APK。</small></div><a class="old-web" href="http://localhost:8080" target="_blank" rel="noopener">打开原网页版 ↗</a></aside>
+  <main>
+    <header class="app-header"><form id="search-form" role="search"><input id="search" type="search" placeholder="搜索电影、剧集、动漫…" maxlength="100" aria-label="搜索影片"><button class="primary" type="submit">搜索</button></form><button id="demo" class="quiet">试播演示片</button></header>
+    <section id="catalog" hidden><div class="section-heading"><div><p class="eyebrow">LIBRARY</p><h1 id="catalog-title">榜单</h1></div><button id="reload">刷新</button></div><div id="tabs" class="chips" aria-label="分类"></div><p id="catalog-status" role="status"></p><div id="cards" class="cards"></div></section>
+    <section id="watch">
+      <div class="watch-heading"><button id="back" class="quiet">‹ 返回榜单</button><div><h1 id="film-title">播放器操作演示</h1><p id="film-meta">本地测试片 · 无需等待视频源</p></div><button id="source">切换资源</button></div>
+      <div class="watch-layout">
+        <div class="viewing">
+          <div id="stage" class="stage" tabindex="0" aria-label="视频播放器">
+            <video id="video" playsinline preload="metadata" aria-label="正在播放的视频"></video>
+            <div class="stage-top"><button id="exit-full" hidden>退出全屏</button><span id="on-video-title">播放器操作演示</span><button id="choose-episode">选集</button><button id="more">更多</button></div>
+            <button id="center-play" class="center-play" aria-label="开始播放">▶</button>
+            <div class="controls" id="controls">
+              <label class="seek"><span class="sr-only">播放进度</span><input id="seek" type="range" min="0" max="100" step="0.1" value="0" aria-label="播放进度"></label>
+              <div class="control-row"><button id="play" aria-label="播放">▶</button><button id="rewind" title="后退 10 秒">↶ 10</button><button id="forward" title="快进 10 秒">10 ↷</button><span id="time">00:00 / 00:00</span><div class="grow"></div><button id="mute" aria-label="静音">声音</button><input id="volume" type="range" min="0" max="1" step="0.05" value="1" aria-label="音量"><button id="speed">1×</button><button id="pip" title="小窗播放">小窗</button><button id="fullscreen" class="full-button" aria-label="全屏播放">⛶ <span>全屏</span></button></div>
+            </div>
+            <div id="lock-shield" hidden><button id="unlock">解锁屏幕</button></div>
+            <p id="player-notice" role="status"></p>
+            <dialog id="dialog"><div class="dialog-heading"><h2 id="dialog-title"></h2><button id="dialog-close" aria-label="关闭">×</button></div><div id="dialog-body"></div></dialog>
+          </div>
+          <div class="transport"><button id="prev-episode">上一集</button><button id="next-episode">下一集</button><button id="fit">画面比例</button><button id="lock">锁屏</button><button id="favorite">收藏</button></div>
+          <div class="play-options"><label><input id="autonext" type="checkbox" checked> 自动连播</label><button id="skip" class="quiet">跳过片头片尾</button><span id="quality">点击播放开始测试</span></div>
+          <p class="hint">播放时控件会在 3 秒后隐藏；轻点画面唤出，暂停时保持显示。全屏入口在控制条右下角。键盘：空格播放 / 暂停，← → 快退 / 快进，F 全屏。</p>
+        </div>
+        <aside class="episode-panel"><div class="panel-heading"><h2>剧集列表 <span id="episode-count"></span></h2><span class="dot"></span></div><p id="source-label"></p><div id="episodes" class="episodes"></div><p class="panel-note" id="demo-note">这是 18 秒的本地测试片。两集使用同一测试片，方便验证选集、连播、倍速与全屏。也可以搜索真实影片试播。</p></aside>
+      </div>
+      <footer class="test-note">此页用于预览新版的布局与播放操作。安卓小窗、后台续播与离线下载需在 APK 中验证；网页收藏和历史仅保存在此浏览器。</footer>
+    </section>
+  </main>
+  <div id="toast" role="status" hidden></div>
+</body></html>

@@ -1,0 +1,3 @@
+<resources>
+    <string name="update_channel_url" translatable="false">https://github.com/guoruya/libretv-android/releases/latest/download/update.json</string>
+</resources>
