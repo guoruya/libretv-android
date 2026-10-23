@@ -13,13 +13,13 @@ public class ReleaseUpdateSmokeTest {
     @Test public void installedReleaseChecksTheConfiguredUpdateChannel() throws Exception {
         org.junit.Assume.assumeTrue("true".equals(InstrumentationRegistry.getArguments().getString("releaseUpdate")));
         android.app.UiAutomation ui = InstrumentationRegistry.getInstrumentation().getUiAutomation();
-        try (android.os.ParcelFileDescriptor command = ui.executeShellCommand("am start -W -n app.libretv.android/.MainActivity")) {
-            try (InputStream in = new android.os.ParcelFileDescriptor.AutoCloseInputStream(command)) { byte[] bytes = new byte[4096]; while (in.read(bytes) != -1) {} }
-        }
+        if ("true".equals(InstrumentationRegistry.getArguments().getString("openInstalled")))
+            assertTrue(awaitAnyText(new String[]{"Open", "打开"}, true, 60000).performAction(AccessibilityNodeInfo.ACTION_CLICK));
+        else shell("am start -W -f 0x10008000 -n app.libretv.android/.MainActivity");
         AccessibilityNodeInfo check = awaitText("检查更新", true); assertTrue(check.performAction(AccessibilityNodeInfo.ACTION_CLICK));
         awaitText("已是最新版本", false); ui.waitForIdle(500, 3000);
         android.graphics.Bitmap image = ui.takeScreenshot();
-        File file = new File(InstrumentationRegistry.getInstrumentation().getTargetContext().getExternalFilesDir(null), "v13-release-update.png");
+        File file = new File(InstrumentationRegistry.getInstrumentation().getTargetContext().getExternalFilesDir(null), "release-update.png");
         try(FileOutputStream out = new FileOutputStream(file)) { image.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out); } finally { image.recycle(); }
     }
     @Test public void installedReleaseUpgradesFromPublicChannel() throws Exception {
@@ -29,6 +29,7 @@ public class ReleaseUpdateSmokeTest {
         shell("am start -W -n app.libretv.android/.MainActivity");
         assertTrue(awaitText("检查更新", true).performAction(AccessibilityNodeInfo.ACTION_CLICK));
         assertTrue(awaitText("更新地址", true).performAction(AccessibilityNodeInfo.ACTION_CLICK));
+        awaitText("保存并检查", true);
         AccessibilityNodeInfo input = findInput(InstrumentationRegistry.getInstrumentation().getUiAutomation().getRootInActiveWindow());
         assertNotNull(input);
         android.os.Bundle value = new android.os.Bundle();
@@ -45,7 +46,7 @@ public class ReleaseUpdateSmokeTest {
             if (System.currentTimeMillis() >= end) fail("System installer did not update the release app");
             Thread.sleep(200);
         }
-        shell("am start -W -n app.libretv.android/.MainActivity");
+        assertTrue(awaitAnyText(new String[]{"Open", "打开"}, true, 60000).performAction(AccessibilityNodeInfo.ACTION_CLICK));
         assertTrue(awaitText("检查更新", true).performAction(AccessibilityNodeInfo.ACTION_CLICK));
         awaitText("当前版本  " + version, false); awaitText("已是最新版本", false);
         android.graphics.Bitmap screenshot = InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
