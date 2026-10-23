@@ -1,18 +1,18 @@
-# LibreTV Android 1.3.1
+# LibreTV Android 1.3.2
 
 面向 Android 手机和平板的独立客户端，最低 Android 8.0。安装后直接连接视频源，不需要 Mac、Node.js 或自建服务器，也不依赖 Google Play 服务。
 
 ## 安装与升级
 
-下载 [LibreTV-1.3.1.apk](https://github.com/guoruya/libretv-android/releases/download/v1.3.1/LibreTV-1.3.1.apk)，直接覆盖旧版，不要卸载。与旧版使用同一包名和签名，保留观看记录、收藏、下载、自定义源和启用状态。
+下载 [LibreTV-1.3.2.apk](https://github.com/guoruya/libretv-android/releases/download/v1.3.2/LibreTV-1.3.2.apk)，直接覆盖旧版，不要卸载。与旧版使用同一包名和签名，保留观看记录、收藏、下载、自定义源和启用状态。
 
 全屏播放时，进度条、顶部选集/菜单和全屏按钮会在 3 秒无操作后一起隐藏；轻点画面临时唤出，不会暂停；暂停后持续显示。锁屏模式的解锁按钮也会自动隐藏，轻点画面可唤出，返回键仍可解锁。
 
-新增首页「检查更新」：检查版本 → 下载并安装 → 按安卓系统提示确认。首次需要允许 LibreTV 安装应用，随后可直接在应用内更新，不用再手动传 APK。下载使用自己的前台服务，支持退到后台后继续；若系统终止任务，会提示重新下载。下载完成后检查包名、版本、系统要求和签名，系统安装器再次校验。不能静默安装。
+从「设置 → 应用更新 → 检查更新」进入：查看当前版本与新版说明 → 点击「确认更新」→ 自动下载 → 按安卓系统提示确认安装。单独检查版本不会下载 APK。首次需要允许 LibreTV 安装应用，随后可直接在应用内更新，不用再手动传 APK。下载使用自己的前台服务，支持退到后台后继续；若系统终止任务，会提示重新下载。下载完成后检查包名、版本、系统要求和签名，系统安装器再次校验。不能静默安装。
 
 默认使用 GitHub 公网更新，不需要电脑开机：[下载最新版](https://github.com/guoruya/libretv-android/releases/latest)。更新地址为 `https://github.com/guoruya/libretv-android/releases/latest/download/update.json`。影片播放直接连接视频源；GitHub 只提供应用与配套源码，不保存观看记录。
 
-已有 1.3.0 的用户可以在「检查更新 → 更新地址」填写上述地址，直接下载升级；更早版本首次需手动覆盖安装。安装 1.3.1 后默认使用公网地址；手动配置过的其他更新地址会保留。设备所在网络需要能访问 GitHub 及其附件下载域名。
+已有 1.3.1 的用户可从首页「检查更新」直接升级到 1.3.2，之后使用「设置」里的更新入口。已有 1.3.0 的用户可以在「检查更新 → 更新地址」填写上述地址，直接下载升级；更早版本首次需手动覆盖安装。1.3.1 及以上默认使用公网地址；手动配置过的其他更新地址会保留。设备所在网络需要能访问 GitHub 及其附件下载域名。
 
 后续发布：增加 `app/build.gradle` 的版本号，编辑 `updates/release-notes.txt`，运行 `./build-apk.sh`，生成 APK、源码 ZIP 和 `dist/update.json`。版本信息指向具体版本的 APK，避免新版本发布时旧下载地址发生变化。提交源码、创建相应版本标签，在 GitHub Release 上传三个文件并设为最新正式发布。签名密钥只保存在构建机器，仓库、APK 及源码 ZIP 均不包含私钥或访问令牌。
 
@@ -57,7 +57,7 @@ keyAlias=libretv
 keyPassword=你的密钥密码
 ```
 
-4. 执行 `./build-apk.sh`，得到 `dist/LibreTV-1.3.1.apk`。Windows 可使用 `gradlew.bat assembleRelease`。
+4. 执行 `./build-apk.sh`，得到 `dist/LibreTV-1.3.2.apk`。Windows 可使用 `gradlew.bat assembleRelease`。
 
 后续更新应保留同一签名密钥并增加 `versionCode`。更换签名无法直接覆盖旧版。密钥、密码和机器专用配置均不包含在源码压缩包中。
 

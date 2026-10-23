@@ -1,3 +1,12 @@
+# 1.3.2 设置内更新验证（2026-10-23）
+
+- 新版入口为「设置 → 应用更新 → 检查更新」，设置显示当前版本；发现新版后主按钮为「确认更新」，点击后沿用现有下载、APK 验证及系统安装流程。
+- Android 15 平板模拟器、1280×800 dp：通过真实界面点击设置与检查更新，显示新版说明和确认按钮。测试服务器计数确认检查阶段没有请求 APK，点击确认后才请求下载；模拟 503 后显示错误、重新下载和取消入口，取消后可返回首页。最终专项测试 4.664 秒通过；测试仅操作 Debug 包的临时更新状态。
+- 构建：13 项 JVM 单元测试通过，Lint 0 errors / 22 warnings，2 项 Node 测试通过；正式包 `1.3.2 / versionCode 7`，沿用原签名和 GitHub 公网通道。
+- 日志 `/tmp/libretv-v132-build.log`、`/tmp/libretv-v132-settings.log`，截图 `dist/v132-settings.png`、`dist/v132-confirm-update.png`。未连接用户的实体 MatePad；系统安装确认仍由 Android 提供。
+
+公网覆盖升级专项脚本当前默认目标为 1.3.2 / 7；可通过 `publicVersion`、`publicVersionCode` 指定目标。旧版已将入口移到设置时增加 `-e fromSettings true`。安装操作仍需显式开启 `-e publicUpgrade true`，普通测试不会替换正式应用。
+
 # 1.3.1 公网更新验证（2026-10-23）
 
 - 正式包 `1.3.1 / versionCode 6`，保留原包名及签名；默认通道为 GitHub Releases 的 `latest/download/update.json`，元数据中的 APK 地址固定到具体版本。
@@ -8,7 +17,7 @@
 - 结果日志：`/tmp/libretv-v131-build.log`、`/tmp/libretv-v131-public-download.log`、`/tmp/libretv-v131-public-upgrade.log`、`/tmp/libretv-v131-public-latest.log`；截图 `dist/v131-public-update.png`。Mac 的匿名下载使用现有系统网络配置，模拟器没有设置 HTTP 代理。
 - 未连接用户 Huawei MatePad 11；实机系统安装权限、华为后台限制仍需实机确认。公网更新需要设备网络可以访问 GitHub 和附件域名；使用这个公网通道不需要电脑运行服务。
 
-公网升级专项测试只在明确指定 `-e publicUpgrade true` 时运行，会通过系统确认覆盖测试设备上的正式应用；默认预期旧版本升级至 1.3.1 / 6，可用 `publicVersion` 和 `publicVersionCode` 参数指定新版本。需提前安装旧版并在测试设备允许 LibreTV 安装应用。普通测试不会执行这项安装操作。发布标签和源码 ZIP 保留发布当时的源码，后续测试脚本修正及本记录在主分支。
+公网升级专项测试只在明确指定 `-e publicUpgrade true` 时运行，会通过系统确认覆盖测试设备上的正式应用；1.3.1 发布时默认预期旧版本升级至 1.3.1 / 6，可用 `publicVersion` 和 `publicVersionCode` 参数指定新版本。需提前安装旧版并在测试设备允许 LibreTV 安装应用。普通测试不会执行这项安装操作。发布标签和源码 ZIP 保留发布当时的源码，后续测试脚本修正及本记录在主分支。
 
 # 1.3.0 验证（2026-10-23）
 

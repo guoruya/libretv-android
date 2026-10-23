@@ -51,10 +51,10 @@ public final class UpdateActivity extends Activity {
         status = Ui.text(this, "点击检查更新", 17, Ui.ACCENT); body.addView(status); Ui.gap(body, 12);
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal); progress.setMax(100); body.addView(progress, new LinearLayout.LayoutParams(-1, Ui.dp(this, 8))); progress.setVisibility(View.GONE);
         details = Ui.text(this, "", 15, Ui.TEXT); Ui.gap(body, 16); body.addView(details); Ui.gap(body, 16);
-        action = Ui.chip(this, "下载并安装", true, () -> { if (ready) install(); else startDownload(); }); body.addView(action);
+        action = Ui.chip(this, "确认更新", true, () -> { if (ready) install(); else startDownload(); }); body.addView(action);
         check = Ui.button(this, "检查更新", this::checkUpdate); body.addView(check);
         cancel = Ui.button(this, "取消下载", () -> { clearDownload(); status.setText("已取消，可重新检查更新"); render(); }); body.addView(cancel);
-        Ui.gap(body, 22); body.addView(Ui.text(this, "更新会保留收藏、观看记录和视频源。下载可在后台继续；安装时按系统提示确认，无需卸载旧版。", 14, Ui.MUTED));
+        Ui.gap(body, 22); body.addView(Ui.text(this, "点击「确认更新」后自动下载，并进入系统安装页面。下载可在后台继续；安装时按系统提示确认，无需卸载旧版，收藏、观看记录和视频源都会保留。", 14, Ui.MUTED));
         Ui.gap(body, 20); channel = Ui.text(this, "", 12, Ui.MUTED); body.addView(channel);
         address = Ui.button(this, "更新地址", this::editAddress); body.addView(address);
         Ui.insets(this, root); render();
@@ -64,7 +64,7 @@ public final class UpdateActivity extends Activity {
         channel.setText(endpoint().isEmpty() ? "尚未设置更新地址" : "更新地址：" + endpoint());
         details.setText(release == null ? "" : "版本 " + release.name + "\n\n" + release.notes);
         action.setVisibility(release != null && (downloadId < 0 || ready || failed) ? View.VISIBLE : View.GONE);
-        action.setText(ready ? "安装更新" : failed ? "重新下载" : "下载并安装"); action.setEnabled(!busy);
+        action.setText(ready ? "安装更新" : failed ? "重新下载" : "确认更新"); action.setEnabled(!busy);
         check.setEnabled(!busy && downloadId < 0); address.setEnabled(!busy && downloadId < 0);
         cancel.setVisibility(downloadId >= 0 ? View.VISIBLE : View.GONE); cancel.setEnabled(!busy);
         cancel.setText(ready ? "删除安装包" : "取消下载");

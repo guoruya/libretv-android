@@ -106,7 +106,7 @@ public final class MainActivity extends Activity {
         }
         if (tablet) navigation.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1));
         navigation.addView(Ui.button(this, "视频源", this::showSources));
-        navigation.addView(Ui.button(this, "检查更新", () -> startActivity(new Intent(this, UpdateActivity.class))));
+        navigation.addView(Ui.button(this, "设置", this::showSettings));
         if (tablet) { Ui.gap(navigation, 8); navigation.addView(Ui.button(this, "关于", this::showAbout)); }
         else navigation.addView(Ui.button(this, "最近搜索", this::recentSearches));
     }
@@ -236,6 +236,19 @@ public final class MainActivity extends Activity {
         List<Library.Source> sources = store.sources(true); if (sources.isEmpty()) { showSources(); return; }
         String[] names = new String[sources.size()]; for (int i = 0; i < names.length; i++) names[i] = sources.get(i).name;
         new AlertDialog.Builder(this).setTitle("浏览来源的最新更新").setItems(names, (dialog, index) -> { browseSource = sources.get(index); tab = "片库"; load(false); }).setNegativeButton("取消", null).show();
+    }
+    private void showSettings() {
+        LinearLayout body = Ui.column(this); Ui.pad(body, 24);
+        ScrollView scroll = new ScrollView(this); scroll.addView(body);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("设置").setView(scroll).setNegativeButton("关闭", null).create();
+        body.addView(Ui.text(this, "应用更新", 18, Ui.TEXT)); Ui.gap(body, 8);
+        String version = ""; try { version = AppUpdates.installed(this).versionName; } catch (Exception ignored) { }
+        body.addView(Ui.text(this, "当前版本  " + version, 14, Ui.MUTED)); Ui.gap(body, 12);
+        body.addView(Ui.chip(this, "检查更新", true, () -> { dialog.dismiss(); startActivity(new Intent(this, UpdateActivity.class)); }));
+        Ui.gap(body, 12); body.addView(Ui.text(this, "发现新版后点击「确认更新」，自动下载并进入系统安装页面。更新会保留收藏、观看记录和视频源。", 13, Ui.MUTED));
+        Ui.gap(body, 24); body.addView(Ui.button(this, "视频源", () -> { dialog.dismiss(); showSources(); }));
+        Ui.gap(body, 8); body.addView(Ui.button(this, "关于 LibreTV", () -> { dialog.dismiss(); showAbout(); }));
+        dialog.show();
     }
     private void showSources() {
         List<Library.Source> sources = store.sources(false); String[] names = new String[sources.size()]; boolean[] checks = new boolean[sources.size()];
