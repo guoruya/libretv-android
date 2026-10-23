@@ -8,6 +8,14 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 public class DiscoveryTest {
+    @Test public void curatedListsRequestTheCorrectSortAndSortReturnedRatings() throws Exception {
+        assertEquals(14, Discovery.RANKS.length);
+        assertTrue(Discovery.curatedUrl(6).contains("type=movie")); assertTrue(Discovery.curatedUrl(6).contains("sort=rank"));
+        assertTrue(Discovery.curatedUrl(10).contains("type=tv")); assertTrue(Discovery.curatedUrl(13).contains("sort=recommend"));
+        JSONObject json = new JSONObject("{\"subjects\":[{\"title\":\"无评分\",\"rate\":0},{\"title\":\"八分\",\"rate\":8},{\"title\":\"九分\",\"rate\":9}]}");
+        assertEquals("九分", Discovery.subjects(json, true).get(0).title); assertEquals("无评分", Discovery.subjects(json, true).get(2).title);
+        assertEquals("无评分", Discovery.subjects(json, false).get(0).title);
+    }
     @Test public void ranksPreserveActualRatingAndNeverUseBaiduHeatAsStars() throws Exception {
         JSONObject response = new JSONObject("{\"code\":200,\"data\":[{\"title\":\"电影\",\"rating\":7.3,\"score\":95000,\"rank\":2,\"cover\":\"https://example.com/poster.jpg\"}]}");
         Discovery.Item movie = Discovery.ranks(response, false).get(0);

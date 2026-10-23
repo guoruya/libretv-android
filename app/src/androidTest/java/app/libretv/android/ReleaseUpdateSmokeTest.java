@@ -59,8 +59,8 @@ public class ReleaseUpdateSmokeTest {
     }
     @Test public void installedReleaseUpgradesFromPublicChannel() throws Exception {
         org.junit.Assume.assumeTrue("true".equals(InstrumentationRegistry.getArguments().getString("publicUpgrade")));
-        String version = InstrumentationRegistry.getArguments().getString("publicVersion", "1.3.2");
-        String code = InstrumentationRegistry.getArguments().getString("publicVersionCode", "7");
+        String version = InstrumentationRegistry.getArguments().getString("publicVersion", "1.4.0");
+        String code = InstrumentationRegistry.getArguments().getString("publicVersionCode", "8");
         shell("am start -W -f 0x10008000 -n app.libretv.android/.MainActivity");
         if ("true".equals(InstrumentationRegistry.getArguments().getString("fromSettings")))
             assertTrue(awaitText("设置", true).performAction(AccessibilityNodeInfo.ACTION_CLICK));

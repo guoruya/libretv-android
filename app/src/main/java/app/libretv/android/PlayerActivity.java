@@ -369,7 +369,7 @@ public final class PlayerActivity extends Activity {
         if (sources.isEmpty()) status.setText("没有启用的视频源，请返回首页设置。");
         for (Library.Source source : sources) jobs.add(worker.submit(() -> {
             List<Library.Video> matches = new ArrayList<>();
-            try { for (Library.Video item : Library.search(source, title, 1).videos) if (Discovery.titleKey(item.title).equals(Discovery.titleKey(title)) && (year.isEmpty() || item.year.isEmpty() || item.year.equals(year))) matches.add(item); } catch (Exception ignored) { }
+            try { for (Library.Video item : Library.search(source, title, 1, store.filterAdult()).videos) if (Discovery.titleKey(item.title).equals(Discovery.titleKey(title)) && (year.isEmpty() || item.year.isEmpty() || item.year.equals(year))) matches.add(item); } catch (Exception ignored) { }
             runOnUiThread(() -> {
                 if (isDestroyed() || !dialog.isShowing()) return;
                 done[0]++; for (Library.Video item : matches) { found.add(item); labels.add(item.source.name + " · " + item.remarks); }

@@ -34,18 +34,29 @@ public final class MainActivity extends Activity {
     private EditText search;
     private TextView heading, status, empty;
     private Button more, sourceButton;
-    private LinearLayout filters, navigation;
+    private LinearLayout filters, channels, refinements, navigation;
     private ProgressBar spinner;
     private GridView grid;
     private CatalogAdapter adapter;
     private String query = "", tab = "榜单", notice = "";
     private Library.Source browseSource;
+    private String catalogKind = "电影", catalogType = "", returnTab = "榜单";
+    private int returnFilterIndex, displayLimit = Catalog.DISPLAY_BATCH, scanBatches, foundCount;
+    private MediaFilters searchFilters = new MediaFilters(), catalogFilters = new MediaFilters();
+    private List<Catalog.Category> categories = new ArrayList<>();
+    private java.util.LinkedHashMap<String, Integer> catalogPages = new java.util.LinkedHashMap<>();
     private int generation, page = 1, completed, expected, filterIndex, coverHeight;
     private boolean loading, tablet;
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved); store = new Store(this); posters = new Posters();
-        if (saved != null) { query = saved.getString("query", ""); tab = saved.getString("tab", "榜单"); filterIndex = saved.getInt("filter"); }
+        JSONObject state = store.browsing();
+        query = state.optString("query"); tab = state.optString("tab", "榜单"); filterIndex = state.optInt("filter");
+        catalogKind = state.optString("catalogKind", "电影"); catalogType = state.optString("catalogType");
+        searchFilters = MediaFilters.fromJson(state.optJSONObject("searchFilters")); catalogFilters = MediaFilters.fromJson(state.optJSONObject("catalogFilters"));
+        for (Library.Source source : store.sources(true)) if (source.url.equals(state.optString("source"))) browseSource = source;
+        if (saved != null) { query = saved.getString("query", query); tab = saved.getString("tab", tab); filterIndex = saved.getInt("filter", filterIndex); }
+        if (store.filterAdult() && catalogKind.equals(MediaFilters.ETHICS)) catalogKind = "电影";
         buildUi(); load(false);
     }
     private boolean isDiscovery() { return tab.equals("榜单") || tab.equals("电影") || tab.equals("剧集") || tab.equals("新番"); }
@@ -66,14 +77,14 @@ public final class MainActivity extends Activity {
             if (action == EditorInfo.IME_ACTION_SEARCH || (event != null && event.getKeyCode() == android.view.KeyEvent.KEYCODE_ENTER && event.getAction() == android.view.KeyEvent.ACTION_UP)) { search(); return true; } return false;
         });
         searchRow.addView(search, new LinearLayout.LayoutParams(0, Ui.dp(this, 52), 1));
-        Button go = Ui.chip(this, "搜索", true, this::search); LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(Ui.dp(this, 76), Ui.dp(this, 52)); p.leftMargin = Ui.dp(this, 8); searchRow.addView(go, p);
+        Button go = Ui.chip(this, "全源搜索", true, this::search); LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(Ui.dp(this, 98), Ui.dp(this, 52)); p.leftMargin = Ui.dp(this, 8); searchRow.addView(go, p);
         if (tablet) { Button recent = Ui.button(this, "最近搜索", this::recentSearches); LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-2, Ui.dp(this, 52)); rp.leftMargin = Ui.dp(this, 8); searchRow.addView(recent, rp); }
         body.addView(searchRow); Ui.gap(body, tablet ? 26 : 16);
         LinearLayout titleRow = Ui.row(this); heading = Ui.title(this, "热播榜单"); heading.setTextSize(tablet ? 27 : 22); heading.setMaxLines(2);
         titleRow.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
         sourceButton = Ui.button(this, "刷新", () -> { if (tab.equals("片库")) chooseBrowseSource(); else if (tab.equals("历史")) confirmClearHistory(); else load(false); });
         titleRow.addView(sourceButton); body.addView(titleRow); Ui.gap(body, 10);
-        HorizontalScrollView filterScroll = new HorizontalScrollView(this); filterScroll.setHorizontalScrollBarEnabled(false); filters = Ui.row(this); filterScroll.addView(filters); body.addView(filterScroll);
+        channels = chipRow(body); filters = chipRow(body); refinements = chipRow(body);
         LinearLayout statusRow = Ui.row(this); Ui.gap(body, 10);
         spinner = new ProgressBar(this); statusRow.addView(spinner, new LinearLayout.LayoutParams(Ui.dp(this, 18), Ui.dp(this, 18)));
         status = Ui.text(this, "", 13, Ui.MUTED); status.setPadding(Ui.dp(this, 6), 0, 0, 0); status.setMinHeight(Ui.dp(this, 36)); status.setGravity(Gravity.CENTER_VERTICAL);
@@ -89,7 +100,7 @@ public final class MainActivity extends Activity {
         });
         results.addView(grid, new FrameLayout.LayoutParams(-1, -1));
         empty = Ui.text(this, "", 16, Ui.MUTED); empty.setGravity(Gravity.CENTER); Ui.pad(empty, 24); results.addView(empty, new FrameLayout.LayoutParams(-1, -1));
-        more = Ui.button(this, "加载更多", () -> load(true)); body.addView(more, new LinearLayout.LayoutParams(-1, Ui.dp(this, 48)));
+        more = Ui.button(this, "加载更多", () -> { if (tab.equals("片库") && categories.isEmpty()) load(false); else load(true); }); body.addView(more, new LinearLayout.LayoutParams(-1, Ui.dp(this, 48)));
         Ui.insets(this, root); buildNavigation(); buildFilters(); configureGrid(); updateUi();
     }
     private void buildNavigation() {
@@ -111,17 +122,69 @@ public final class MainActivity extends Activity {
         else navigation.addView(Ui.button(this, "最近搜索", this::recentSearches));
     }
     private void buildFilters() {
-        filters.removeAllViews();
+        filters.removeAllViews(); channels.removeAllViews(); refinements.removeAllViews();
+        if (tab.equals("片库")) {
+            for (String kind : MediaFilters.KINDS) if (!store.filterAdult() || !kind.equals(MediaFilters.ETHICS)) chip(channels, kind, kind.equals(catalogKind), () -> {
+                catalogKind = kind; catalogType = ""; catalogFilters = new MediaFilters(); load(false);
+            });
+            chip(filters, "全部分类", catalogType.isEmpty(), () -> changeCatalogType(""));
+            for (Catalog.Category category : categories) if (category.kind.equals(catalogKind)) chip(filters, category.name, catalogType.equals(category.id), () -> changeCatalogType(category.id));
+        }
+        if (tab.equals("搜索") || tab.equals("片库")) {
+            String[] fields = tab.equals("搜索") ? new String[]{"kind", "type", "area", "genre", "year", "sort"} : new String[]{"area", "genre", "year", "sort"};
+            for (String field : fields) {
+                String value = media().get(field);
+                String label = field.equals("sort") ? MediaFilters.SORT_LABELS[java.util.Arrays.asList(MediaFilters.SORTS).indexOf(value)] : filterName(field) + (value.isEmpty() ? " · 全部" : " · " + value);
+                chip(refinements, label + " ▾", !value.isEmpty(), () -> chooseFilter(field));
+            }
+            if (media().active() || !media().sort.isEmpty()) chip(refinements, "清除筛选", false, () -> {
+                if (tab.equals("片库")) catalogFilters = new MediaFilters(); else searchFilters = new MediaFilters(); filtersChanged();
+            });
+        }
         String[] labels = tab.equals("榜单") ? Discovery.RANKS : tab.equals("电影") ? Discovery.MOVIES : tab.equals("剧集") ? Discovery.TV : tab.equals("新番") ? Discovery.DAYS : new String[0];
         if (filterIndex >= labels.length) filterIndex = 0;
+        if (tab.equals("榜单")) {
+            chip(channels, "周榜 / 热播", filterIndex < 6, () -> { filterIndex = 0; load(false); });
+            chip(channels, "高分 / 精选", filterIndex >= 6, () -> { filterIndex = 6; load(false); });
+        }
         for (int i = 0; i < labels.length; i++) {
+            if (tab.equals("榜单") && (i < 6) != (filterIndex < 6)) continue;
             final int index = i; Button chip = Ui.chip(this, labels[i], i == filterIndex, () -> { filterIndex = index; load(false); });
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-2, Ui.dp(this, 48)); p.rightMargin = Ui.dp(this, 8); filters.addView(chip, p);
         }
     }
+    private LinearLayout chipRow(LinearLayout body) {
+        HorizontalScrollView scroll = new HorizontalScrollView(this); scroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout row = Ui.row(this); row.setPadding(0, 0, 0, Ui.dp(this, 6)); scroll.addView(row); body.addView(scroll); return row;
+    }
+    private void chip(LinearLayout row, String label, boolean selected, Runnable click) {
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-2, Ui.dp(this, 48)); p.rightMargin = Ui.dp(this, 8); row.addView(Ui.chip(this, label, selected, click), p);
+    }
+    private MediaFilters media() { return tab.equals("片库") ? catalogFilters : searchFilters; }
+    private String filterName(String field) {
+        switch (field) { case "kind": return "类别"; case "type": return "类型"; case "area": return "地区"; case "genre": return "题材"; case "year": return "年份"; default: return "排序"; }
+    }
+    private void chooseFilter(String field) {
+        List<String> values = new ArrayList<>(); values.add("");
+        if (field.equals("sort")) values = new ArrayList<>(java.util.Arrays.asList(MediaFilters.SORTS)); else values.addAll(media().choices(videos, field));
+        String[] labels = field.equals("sort") ? MediaFilters.SORT_LABELS : new String[values.size()];
+        if (!field.equals("sort")) for (int i = 0; i < labels.length; i++) labels[i] = i == 0 ? "全部" : values.get(i);
+        List<String> options = values;
+        new AlertDialog.Builder(this).setTitle(filterName(field) + (field.equals("sort") ? " · 适用于已找到的影片" : " · 来自源站资料"))
+            .setSingleChoiceItems(labels, values.indexOf(media().get(field)), (d, i) -> { media().set(field, options.get(i)); d.dismiss(); filtersChanged(); }).setNegativeButton("关闭", null).show();
+    }
+    private void filtersChanged() {
+        displayLimit = Catalog.DISPLAY_BATCH; scanBatches = 0; notice = ""; buildFilters(); regroup(); saveBrowsing(); grid.setSelection(0);
+        if (tab.equals("片库") && !loading && foundCount < displayLimit && !catalogPages.isEmpty()) fetchCatalog();
+    }
+    private void changeCatalogType(String id) { catalogType = id; catalogFilters = new MediaFilters(); load(false); }
+    private void saveBrowsing() {
+        try { store.browsing(new JSONObject().put("tab", tab).put("query", query).put("filter", filterIndex).put("catalogKind", catalogKind).put("catalogType", catalogType)
+            .put("source", browseSource == null ? "" : browseSource.url).put("searchFilters", searchFilters.json()).put("catalogFilters", catalogFilters.json())); } catch (Exception ignored) { }
+    }
     private void configureGrid() {
         int width = getResources().getConfiguration().screenWidthDp - (tablet ? 204 : 24);
-        boolean wideCards = tab.equals("搜索"); int count = wideCards ? Math.max(1, width / 310) : Math.max(2, width / 155);
+        boolean wideCards = tab.equals("搜索"); int count = wideCards ? Math.max(1, width / 310) : Math.max(2, width / (tab.equals("片库") ? 140 : 155));
         grid.setNumColumns(count); coverHeight = Ui.dp(this, ((width - (count - 1) * 14) / count) * 1.42f);
         grid.setAdapter(adapter);
     }
@@ -129,7 +192,8 @@ public final class MainActivity extends Activity {
         String text = search.getText().toString().trim(); if (text.isEmpty()) { recentSearches(); return; } searchTitle(text);
     }
     private void searchTitle(String title) {
-        query = Ui.plain(title); tab = "搜索"; filterIndex = 0; search.setText(query); store.rememberSearch(query);
+        if (!tab.equals("搜索")) { returnTab = tab; returnFilterIndex = filterIndex; }
+        query = Ui.plain(title); tab = "搜索"; filterIndex = 0; searchFilters = new MediaFilters(); search.setText(query); store.rememberSearch(query);
         ((InputMethodManager) getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(search.getWindowToken(), 0); search.clearFocus(); load(false);
     }
     private void recentSearches() {
@@ -141,27 +205,30 @@ public final class MainActivity extends Activity {
     private void cancelRequests() { generation++; for (Future<?> task : pending) task.cancel(true); pending.clear(); }
     private void load(boolean append) {
         if (append && loading) return;
+        if (append && tab.equals("片库")) {
+            boolean retry = !failures.isEmpty();
+            if (!retry) displayLimit += Catalog.DISPLAY_BATCH;
+            scanBatches = 0; notice = ""; regroup();
+            if ((retry || foundCount < displayLimit) && !catalogPages.isEmpty()) fetchCatalog(); return;
+        }
         cancelRequests(); int token = generation; failures.clear(); notice = "";
+        if (!append && tab.equals("片库")) { categories.clear(); catalogPages.clear(); displayLimit = Catalog.DISPLAY_BATCH; scanBatches = 0; foundCount = 0; }
         if (!append) { videos.clear(); groups.clear(); recommendations.clear(); nextSources.clear(); page = 0; buildNavigation(); buildFilters(); configureGrid(); grid.setSelection(0); }
+        saveBrowsing();
         if (isDiscovery()) { loadDiscovery(token); return; }
+        if (tab.equals("片库")) { loadCatalog(token); return; }
         if (tab.equals("历史") || tab.equals("收藏")) {
             loading = false; JSONArray items = tab.equals("历史") ? store.history() : store.favorites();
             for (int i = 0; i < items.length(); i++) try { videos.add(Library.Video.fromJson(items.getJSONObject(i))); } catch (Exception ignored) { }
             regroup(); return;
         }
         List<Library.Source> selected = append ? new ArrayList<>(nextSources) : store.sources(true);
-        if (!append && tab.equals("片库") && !selected.isEmpty()) {
-            if (browseSource == null || !store.enabled(browseSource.url)) {
-                browseSource = selected.get(0); for (Library.Source source : selected) if (source.name.contains("360")) browseSource = source;
-            }
-            selected = new ArrayList<>(); selected.add(browseSource);
-        }
         page++; nextSources.clear(); completed = 0; expected = selected.size(); loading = expected > 0; updateUi();
         if (selected.isEmpty()) { empty.setText("还没有启用视频源\n请到「视频源」选择至少一个来源。"); return; }
-        String keyword = tab.equals("片库") ? "" : query; int requestedPage = page;
+        String keyword = query; int requestedPage = page; boolean filterAdult = store.filterAdult();
         for (Library.Source source : selected) pending.add(requests.submit(() -> {
             Library.Page result = null; String error = null;
-            try { result = Library.search(source, keyword, requestedPage); } catch (Exception e) { error = e.getMessage(); }
+            try { result = Library.search(source, keyword, requestedPage, filterAdult); } catch (Exception e) { error = e.getMessage(); }
             Library.Page outcome = result; String failure = error;
             runOnUiThread(() -> {
                 if (isDestroyed() || token != generation) return; completed++;
@@ -172,6 +239,57 @@ public final class MainActivity extends Activity {
                 }
                 else failures.add(source.name + "：" + (failure == null ? "连接失败" : failure));
                 loading = completed < expected; regroup();
+            });
+        }));
+    }
+    private void loadCatalog(int token) {
+        List<Library.Source> sources = store.sources(true); loading = false;
+        Library.Source selected = null;
+        for (Library.Source source : sources) if (browseSource != null && source.url.equals(browseSource.url)) selected = source;
+        if (selected == null && !sources.isEmpty()) { selected = sources.get(0); for (Library.Source source : sources) if (source.name.contains("360")) selected = source; }
+        browseSource = selected; saveBrowsing();
+        if (selected == null) { notice = "没有启用视频源，请到「视频源」启用至少一个来源"; updateUi(); return; }
+        Library.Source source = selected; boolean filterAdult = store.filterAdult(); loading = true; updateUi();
+        pending.add(requests.submit(() -> {
+            List<Catalog.Category> result = null; String error = null;
+            try { result = Catalog.categories(source, filterAdult); } catch (Exception e) { error = e.getMessage(); }
+            List<Catalog.Category> outcome = result; String failure = error;
+            runOnUiThread(() -> {
+                if (isDestroyed() || token != generation) return; loading = false;
+                if (outcome == null) { failures.add(source.name + "：" + failure); notice = "分类加载失败 · 点击下方重试或切换来源"; updateUi(); return; }
+                categories = outcome;
+                boolean selectedExists = catalogType.isEmpty();
+                for (Catalog.Category category : categories) if (category.id.equals(catalogType) && category.kind.equals(catalogKind)) selectedExists = true;
+                if (!selectedExists) catalogType = "";
+                catalogPages = Catalog.pages(categories, catalogKind, catalogType); buildFilters(); saveBrowsing();
+                if (catalogPages.isEmpty()) { notice = "该来源没有「" + catalogKind + "」分类，可切换来源或全源搜索"; updateUi(); }
+                else fetchCatalog();
+            });
+        }));
+    }
+    private void fetchCatalog() {
+        if (loading || catalogPages.isEmpty() || browseSource == null) return;
+        int token = generation; Library.Source source = browseSource; boolean filterAdult = store.filterAdult();
+        java.util.Map<String, Integer> pages = new java.util.LinkedHashMap<>(catalogPages);
+        loading = true; failures.clear(); notice = ""; scanBatches++; updateUi();
+        pending.add(requests.submit(() -> {
+            Catalog.Batch batch = null; String error = null;
+            try { batch = Catalog.fetch(source, pages, filterAdult); } catch (Exception e) { error = e.getMessage(); }
+            Catalog.Batch outcome = batch; String failure = error;
+            runOnUiThread(() -> {
+                if (isDestroyed() || token != generation) return; loading = false;
+                if (outcome == null) failures.add(source.name + "：" + failure);
+                else {
+                    catalogPages = outcome.next; failures.addAll(outcome.failures);
+                    java.util.Set<String> known = new java.util.HashSet<>(); for (Library.Video video : videos) known.add(video.key());
+                    for (Library.Video video : outcome.videos) if (known.add(video.key())) videos.add(video);
+                }
+                regroup();
+                if (!failures.isEmpty()) { notice = "部分分类加载失败 · 已保留结果，点击下方重试 · 点此查看原因"; updateUi(); }
+                else if (foundCount < displayLimit && !catalogPages.isEmpty()) {
+                    if (scanBatches < Catalog.SCAN_BATCHES) fetchCatalog();
+                    else { notice = "已检索 " + videos.size() + " 条资料 · 可继续加载寻找符合条件的影片"; updateUi(); }
+                }
             });
         }));
     }
@@ -193,21 +311,32 @@ public final class MainActivity extends Activity {
             });
         }));
     }
-    private void regroup() { groups = Discovery.groups(videos); updateUi(); }
+    private void regroup() {
+        groups = tab.equals("搜索") || tab.equals("片库") ? media().groups(videos) : Discovery.groups(videos);
+        foundCount = groups.size();
+        if (tab.equals("片库") && groups.size() > displayLimit) groups = new ArrayList<>(groups.subList(0, displayLimit));
+        updateUi();
+    }
     private void updateUi() {
         if (heading == null) return;
-        heading.setText(tab.equals("榜单") ? "热播榜单" : tab.equals("电影") ? "发现好电影" : tab.equals("剧集") ? "追剧指南" : tab.equals("新番") ? "动漫与新番" : tab.equals("搜索") ? "“" + query + "”" : tab.equals("历史") ? "继续观看" : tab.equals("收藏") ? "我的收藏" : "片库更新");
+        heading.setText(tab.equals("榜单") ? (filterIndex >= 6 ? "高分与精选" : "热播榜单") : tab.equals("电影") ? "发现好电影" : tab.equals("剧集") ? "追剧指南" : tab.equals("新番") ? "动漫与新番" : tab.equals("搜索") ? "“" + query + "”" : tab.equals("历史") ? "继续观看" : tab.equals("收藏") ? "我的收藏" : catalogKind + "片库");
         sourceButton.setText(tab.equals("片库") ? (browseSource == null ? "切换来源" : browseSource.name + " ▾") : tab.equals("历史") ? "清空记录" : "刷新");
         spinner.setVisibility(loading ? View.VISIBLE : View.GONE);
         int count = isDiscovery() ? recommendations.size() : groups.size();
         if (!notice.isEmpty()) status.setText(notice);
-        else if (isDiscovery()) status.setText((tab.equals("新番") ? (filterIndex == 0 ? "豆瓣动画推荐" : "Bangumi 放送日历") : tab.equals("榜单") && filterIndex == 5 ? "百度热播剧" : "豆瓣推荐") + " · " + count + " 部影片 · 点击海报搜索片源" + (loading ? " · 正在更新" : ""));
+        else if (isDiscovery()) status.setText(Discovery.description(tab, filterIndex) + " · " + count + " 部影片 · 点击海报搜索片源" + (loading ? " · 正在更新" : ""));
         else if (tab.equals("历史")) status.setText(count + " 部影片 · 点击继续播放 · 进度保存在本机");
         else if (tab.equals("收藏")) status.setText(count + " 部收藏 · 在影片详情中添加或取消收藏");
-        else status.setText(count + " 部影片 · " + videos.size() + " 条结果" + (loading ? " · 已搜索 " + completed + "/" + expected + " 源" : failures.isEmpty() ? " · 同片多源已合并" : " · " + failures.size() + " 源连接失败，点此查看"));
+        else if (tab.equals("片库")) status.setText("显示 " + count + " / 已找到 " + foundCount + " 部 · 排序适用于已找到的影片" + (loading ? " · 正在检索分类" : catalogPages.isEmpty() ? " · 来源已检索完毕" : ""));
+        else status.setText(count + " / " + Discovery.groups(videos).size() + " 部影片 · " + media().apply(videos).size() + " / " + videos.size() + " 条结果" + (loading ? " · 已搜索 " + completed + "/" + expected + " 源" : failures.isEmpty() ? " · 搜索全部已启用源" : " · " + failures.size() + " 源连接失败，点此查看"));
         empty.setVisibility(count == 0 ? View.VISIBLE : View.GONE);
         empty.setText(loading ? "正在加载…\n结果会陆续显示" : tab.equals("历史") ? "还没有观看记录\n播放影片后，可在这里继续观看。" : tab.equals("收藏") ? "收藏下一部想看的影片\n搜索影片，打开详情，点击「收藏」。" : tab.equals("新番") && filterIndex > 0 ? "日历暂时无法加载\n请刷新重试，或切换「热门动漫」继续浏览。" : isDiscovery() ? "暂时没有内容\n点击刷新重试，或切换其他栏目。" : "没有找到影片\n试试更短的片名，或切换视频源。");
-        more.setVisibility(!loading && !nextSources.isEmpty() && !isDiscovery() && !tab.equals("历史") && !tab.equals("收藏") ? View.VISIBLE : View.GONE);
+        boolean filteredEmpty = !loading && count == 0 && (tab.equals("搜索") || tab.equals("片库")) && media().active();
+        if (filteredEmpty) empty.setText("没有符合当前筛选条件的影片\n轻点此处清除筛选" + (tab.equals("片库") && !catalogPages.isEmpty() ? "，或继续加载。" : "。"));
+        empty.setOnClickListener(filteredEmpty ? v -> { if (tab.equals("片库")) catalogFilters = new MediaFilters(); else searchFilters = new MediaFilters(); filtersChanged(); } : null);
+        more.setText(tab.equals("片库") && !failures.isEmpty() ? "重试加载" : "加载更多");
+        boolean canLoad = tab.equals("片库") ? foundCount > displayLimit || !catalogPages.isEmpty() || !failures.isEmpty() : !nextSources.isEmpty();
+        more.setVisibility(!loading && canLoad && !isDiscovery() && !tab.equals("历史") && !tab.equals("收藏") ? View.VISIBLE : View.GONE);
         adapter.notifyDataSetChanged();
     }
     private void details(List<Library.Video> candidates) {
@@ -216,6 +345,8 @@ public final class MainActivity extends Activity {
         ImageView image = new ImageView(this); image.setScaleType(ImageView.ScaleType.CENTER_CROP); posters.load(image, video.poster); intro.addView(image, new LinearLayout.LayoutParams(Ui.dp(this, 110), Ui.dp(this, 156)));
         LinearLayout info = Ui.column(this); info.setPadding(Ui.dp(this, 16), 0, 0, 0); intro.addView(info, new LinearLayout.LayoutParams(0, -2, 1));
         info.addView(Ui.text(this, video.title, 22, Ui.TEXT)); Ui.gap(info, 10); info.addView(Ui.text(this, video.year + "  " + video.type + "  " + video.area, 14, Ui.ACCENT)); Ui.gap(info, 8); info.addView(Ui.text(this, video.remarks, 14, Ui.MUTED));
+        if (!video.genres.isEmpty()) { Ui.gap(info, 6); info.addView(Ui.text(this, "题材  " + video.genres, 13, Ui.MUTED)); }
+        if (video.updatedAt > 0) { Ui.gap(info, 6); info.addView(Ui.text(this, "资源更新  " + android.text.format.DateFormat.format("yyyy-MM-dd HH:mm", video.updatedAt), 13, Ui.MUTED)); }
         Button favorite = Ui.button(this, store.favorite(video) ? "已收藏 · 取消" : "＋ 收藏", () -> { });
         favorite.setOnClickListener(v -> { store.toggleFavorite(video); favorite.setText(store.favorite(video) ? "已收藏 · 取消" : "＋ 收藏"); if (tab.equals("收藏")) load(false); }); Ui.gap(info, 10); info.addView(favorite); panel.addView(intro);
         if (!video.director.isEmpty()) { Ui.gap(panel, 14); panel.addView(Ui.text(this, "导演  " + video.director, 14, Ui.MUTED)); }
@@ -235,7 +366,10 @@ public final class MainActivity extends Activity {
     private void chooseBrowseSource() {
         List<Library.Source> sources = store.sources(true); if (sources.isEmpty()) { showSources(); return; }
         String[] names = new String[sources.size()]; for (int i = 0; i < names.length; i++) names[i] = sources.get(i).name;
-        new AlertDialog.Builder(this).setTitle("浏览来源的最新更新").setItems(names, (dialog, index) -> { browseSource = sources.get(index); tab = "片库"; load(false); }).setNegativeButton("取消", null).show();
+        new AlertDialog.Builder(this).setTitle("片库来源 · 不影响全源搜索").setItems(names, (dialog, index) -> {
+            if (browseSource == null || !browseSource.url.equals(sources.get(index).url)) { catalogType = ""; catalogFilters = new MediaFilters(); }
+            browseSource = sources.get(index); tab = "片库"; load(false);
+        }).setNegativeButton("取消", null).show();
     }
     private void showSettings() {
         LinearLayout body = Ui.column(this); Ui.pad(body, 24);
@@ -246,6 +380,12 @@ public final class MainActivity extends Activity {
         body.addView(Ui.text(this, "当前版本  " + version, 14, Ui.MUTED)); Ui.gap(body, 12);
         body.addView(Ui.chip(this, "检查更新", true, () -> { dialog.dismiss(); startActivity(new Intent(this, UpdateActivity.class)); }));
         Ui.gap(body, 12); body.addView(Ui.text(this, "发现新版后点击「确认更新」，自动下载并进入系统安装页面。更新会保留收藏、观看记录和视频源。", 13, Ui.MUTED));
+        Ui.gap(body, 24); CheckBox adultFilter = new CheckBox(this); adultFilter.setText("过滤成人内容"); adultFilter.setTextColor(Ui.TEXT); adultFilter.setMinHeight(Ui.dp(this, 48)); adultFilter.setChecked(store.filterAdult()); body.addView(adultFilter);
+        adultFilter.setOnCheckedChangeListener((button, checked) -> {
+            store.filterAdult(checked);
+            if (checked) { if (catalogKind.equals(MediaFilters.ETHICS)) { catalogKind = "电影"; catalogType = ""; } searchFilters = new MediaFilters(); catalogFilters = new MediaFilters(); }
+            if (tab.equals("搜索") || tab.equals("片库")) load(false);
+        });
         Ui.gap(body, 24); body.addView(Ui.button(this, "视频源", () -> { dialog.dismiss(); showSources(); }));
         Ui.gap(body, 8); body.addView(Ui.button(this, "关于 LibreTV", () -> { dialog.dismiss(); showAbout(); }));
         dialog.show();
@@ -279,9 +419,12 @@ public final class MainActivity extends Activity {
             }).show();
     }
     @Override public void onConfigurationChanged(Configuration config) { super.onConfigurationChanged(config); buildUi(); }
+    @Override public void onBackPressed() {
+        if (tab.equals("搜索")) { tab = returnTab; filterIndex = returnFilterIndex; query = ""; search.setText(""); load(false); } else super.onBackPressed();
+    }
     @Override protected void onActivityResult(int request, int result, Intent data) { super.onActivityResult(request, result, data); if (request == 100 && result == RESULT_OK && data != null && data.getStringExtra("searchTitle") != null) searchTitle(data.getStringExtra("searchTitle")); }
     @Override protected void onResume() { super.onResume(); if (store != null && (tab.equals("历史") || tab.equals("收藏"))) load(false); }
-    @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); out.putString("query", query); out.putString("tab", tab); out.putInt("filter", filterIndex); }
+    @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); saveBrowsing(); out.putString("query", query); out.putString("tab", tab); out.putInt("filter", filterIndex); }
     @Override protected void onDestroy() { cancelRequests(); requests.shutdownNow(); posters.close(); super.onDestroy(); }
 
     private final class CatalogAdapter extends BaseAdapter {

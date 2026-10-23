@@ -33,8 +33,8 @@ final class Store {
             for (JSONArray array : new JSONArray[]{builtin, custom}) for (int i = 0; i < array.length(); i++) {
                 JSONObject j = array.getJSONObject(i);
                 String url = j.optString("url");
-                if (Library.validUrl(url) && !j.optBoolean("isAdult") && seen.add(url) && (!enabledOnly || !disabled.contains(url)))
-                    result.add(new Library.Source(j.optString("name", "自定义源"), url));
+                if (Library.validUrl(url) && (!filterAdult() || !j.optBoolean("isAdult")) && seen.add(url) && (!enabledOnly || !disabled.contains(url)))
+                    result.add(new Library.Source(j.optString("name", "自定义源"), url, j.optBoolean("isAdult")));
             }
         } catch (Exception e) { android.util.Log.e("LibreTV", "Cannot read sources", e); }
         return result;
@@ -128,4 +128,10 @@ final class Store {
         return items;
     }
     void clearHistory() { preferences.edit().remove("history").apply(); }
+    boolean filterAdult() { return preferences.getBoolean("filterAdult", true); }
+    void filterAdult(boolean value) { preferences.edit().putBoolean("filterAdult", value).apply(); }
+    JSONObject browsing() {
+        try { return new JSONObject(preferences.getString("browsing", "{}")); } catch (Exception e) { return new JSONObject(); }
+    }
+    void browsing(JSONObject value) { preferences.edit().putString("browsing", value.toString()).apply(); }
 }

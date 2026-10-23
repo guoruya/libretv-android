@@ -10,7 +10,8 @@ import java.util.Locale;
 
 /** Public recommendation metadata. A recommendation opens a search, never an invented play URL. */
 final class Discovery {
-    static final String[] RANKS = {"电影周榜", "国产剧周榜", "海外剧周榜", "国内综艺", "海外综艺", "百度热播剧"};
+    static final String[] RANKS = {"电影周榜", "国产剧周榜", "海外剧周榜", "国内综艺", "海外综艺", "百度热播剧", "高分电影", "高分剧集", "高分日漫", "高分综艺", "高分纪录片", "经典电影", "冷门佳片", "最新电影"};
+    private static final String[] CURATED_TAGS = {"豆瓣高分", "热门", "日本动画", "综艺", "纪录片", "经典", "冷门佳片", "最新"};
     static final String[] PATHS = {"movie", "tv_chinese", "tv_global", "show_chinese", "show_global"};
     static final String[] MOVIES = {"热门", "最新", "经典", "豆瓣高分", "冷门佳片", "华语", "欧美", "韩国", "日本", "动画"};
     static final String[] TV = {"热门", "美剧", "英剧", "韩剧", "日剧", "国产剧", "港剧", "日本动画", "综艺", "纪录片"};
@@ -25,6 +26,7 @@ final class Discovery {
     }
     static List<Item> fetch(String section, int index) throws Exception {
         if (section.equals("榜单")) {
+            if (index >= 6) return subjects(new JSONObject(get(curatedUrl(index))), index < 11);
             String path = index == 5 ? "/v2/baidu/teleplay" : "/v2/douban/weekly/" + PATHS[index];
             Exception failure = null;
             for (String host : new String[]{"https://60s.crystelf.top", "https://60s.viki.moe"}) {
@@ -40,6 +42,17 @@ final class Discovery {
         String type = section.equals("电影") ? "movie" : "tv";
         String tag = section.equals("电影") ? MOVIES[index] : TV[index];
         return subjects(new JSONObject(get("https://movie.douban.com/j/search_subjects?type=" + type + "&tag=" + Library.encode(tag) + "&sort=recommend&page_limit=50&page_start=0")));
+    }
+    static String curatedUrl(int index) {
+        int i = index - 6;
+        if (i < 0 || i >= CURATED_TAGS.length) throw new IllegalArgumentException("未知精选榜单");
+        String type = i >= 1 && i <= 4 ? "tv" : "movie";
+        return "https://movie.douban.com/j/search_subjects?type=" + type + "&tag=" + Library.encode(CURATED_TAGS[i]) + "&sort=" + (i < 5 ? "rank" : "recommend") + "&page_limit=50&page_start=0";
+    }
+    static String description(String section, int index) {
+        if (section.equals("新番")) return index == 0 ? "豆瓣动画推荐" : "Bangumi 放送日历";
+        if (section.equals("榜单")) return index < 5 ? "豆瓣官方周榜" : index == 5 ? "百度热度榜 · 非评分排名" : index < 11 ? "豆瓣精选 · 按返回影片评分排序" : "豆瓣精选 · 推荐顺序";
+        return "豆瓣推荐";
     }
     private static String get(String url) throws Exception { return new String(Library.download(url, 4 * 1024 * 1024), StandardCharsets.UTF_8); }
     static String rating(Object raw) {
@@ -58,11 +71,15 @@ final class Discovery {
         return list;
     }
     static List<Item> subjects(JSONObject json) throws Exception {
+        return subjects(json, false);
+    }
+    static List<Item> subjects(JSONObject json, boolean ranked) throws Exception {
         List<Item> list = new ArrayList<>(); JSONArray subjects = json.getJSONArray("subjects");
         for (int i = 0; i < subjects.length(); i++) {
             JSONObject j = subjects.getJSONObject(i);
             if (!j.optString("title").isEmpty()) list.add(new Item(j.getString("title"), j.optString("cover"), rating(j.opt("rate")), j.optBoolean("is_new") ? "新上榜" : "豆瓣推荐", 0));
         }
+        if (ranked) list.sort((a, b) -> Double.compare(b.rating.isEmpty() ? 0 : Double.parseDouble(b.rating), a.rating.isEmpty() ? 0 : Double.parseDouble(a.rating)));
         return list;
     }
     static List<Item> calendar(JSONArray json, int day) throws Exception {
